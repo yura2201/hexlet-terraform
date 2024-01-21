@@ -15,36 +15,45 @@ variable "token" {
   type      = string
   sensitive = true
 }
-variable "cloud_id" {}
-variable "folder_id" {}
+variable "cloud_id" {
+  type      = string
+  sensitive = true
+}
+variable "folder_id" {
+  type      = string
+  sensitive = true
+}
+
+variable "yc_zone" {}
+variable "os_image" {}
 
 provider "yandex" {
   token = var.token
   #  service_account_key_file = "path_to_service_account_key_file"
   cloud_id  = var.cloud_id
   folder_id = var.folder_id
-  zone      = "ru-central1-a"
+  zone      = var.yc_zone
 }
 
 # https://cloud.yandex.com/ru/docs/compute/concepts/disk
 resource "yandex_compute_disk" "boot-disk-1" {
   name = "disk-1"
   type = "network-hdd"
-  zone = "ru-central1-a"
+  zone = var.yc_zone
   # GiB
   size = "8"
   # yc compute image list --folder-id standard-images
-  image_id = "fd8bkgba66kkf9eenpkb"
+  image_id = var.os_image
 }
 
 resource "yandex_compute_disk" "boot-disk-2" {
   name = "disk-2"
   type = "network-hdd"
-  zone = "ru-central1-a"
+  zone = var.yc_zone
   # GiB
   size = "8"
   # yc compute image list --folder-id standard-images
-  image_id = "fd8bkgba66kkf9eenpkb"
+  image_id = var.os_image
 }
 
 resource "yandex_vpc_network" "network-1" {
@@ -53,7 +62,7 @@ resource "yandex_vpc_network" "network-1" {
 
 resource "yandex_vpc_subnet" "subnet-1" {
   name           = "yandex-student-subnet-1"
-  zone           = "ru-central1-a"
+  zone           = var.yc_zone
   network_id     = yandex_vpc_network.network-1.id
   v4_cidr_blocks = ["192.168.10.0/24"]
 }
@@ -62,7 +71,7 @@ resource "yandex_compute_instance" "web-1" {
   name = "yandex-student"
   # https://cloud.yandex.ru/ru/docs/compute/concepts/vm-platforms
   platform_id = "standard-v1"
-  zone        = "ru-central1-a"
+  zone        = var.yc_zone
 
   resources {
     # Гарантированная доля vCPU, %
@@ -95,7 +104,7 @@ resource "yandex_compute_instance" "web-2" {
   name = "yandex-student-2"
   # https://cloud.yandex.ru/ru/docs/compute/concepts/vm-platforms
   platform_id = "standard-v1"
-  zone        = "ru-central1-a"
+  zone        = var.yc_zone
 
   resources {
     # Гарантированная доля vCPU, %
