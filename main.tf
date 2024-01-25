@@ -47,6 +47,16 @@ variable "db_password" {
   sensitive = true
 }
 
+variable "ssh_key_path_pub" {
+  type      = string
+  sensitive = true
+}
+
+variable "ssh_key_path" {
+  type      = string
+  sensitive = true
+}
+
 provider "yandex" {
   token = var.token
   #  service_account_key_file = "path_to_service_account_key_file"
@@ -116,14 +126,29 @@ resource "yandex_compute_instance" "web-1" {
   }
 
   metadata = {
-    ssh-keys = "${var.yc_user}:${file("~/.ssh/id/yandex/cloud/id_student_ed25519.pub")}"
+    user-data = "#cloud-config\nusers:\n  - name: ${var.yc_user}\n    groups: sudo\n    shell: /bin/bash\n    sudo: 'ALL=(ALL) NOPASSWD:ALL'\n    ssh-authorized-keys:\n      - ${file(${var.ssh_key_path_pub})}"
   }
 
   connection {
     type        = "ssh"
     user        = var.yc_user
-    private_key = file("~/.ssh/id/yandex/cloud/id_student_ed25519.pub")
+    private_key = file(var.ssh_key_path)
     host        = self.network_interface[0].nat_ip_address
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      <<EOT
+sudo docker run -d -p 0.0.0.0:80:3000 \
+  -e DB_TYPE=postgres \
+  -e DB_NAME=${var.db_name} \
+  -e DB_HOST=${yandex_mdb_postgresql_cluster.pg-cluster.host.0.fqdn} \
+  -e DB_PORT=6432 \
+  -e DB_USER=${var.db_user} \
+  -e DB_PASS=${var.db_password} \
+  ghcr.io/requarks/wiki:2.5
+EOT
+    ]
   }
 }
 
@@ -156,14 +181,29 @@ resource "yandex_compute_instance" "web-2" {
   }
 
   metadata = {
-    ssh-keys = "${var.yc_user}:${file("~/.ssh/id/yandex/cloud/id_student_2_ed25519.pub")}"
+    user-data = "#cloud-config\nusers:\n  - name: ${var.yc_user}\n    groups: sudo\n    shell: /bin/bash\n    sudo: 'ALL=(ALL) NOPASSWD:ALL'\n    ssh-authorized-keys:\n      - ${file(${var.ssh_key_path_pub})}"
   }
 
   connection {
     type        = "ssh"
     user        = var.yc_user
-    private_key = file("~/.ssh/id/yandex/cloud/id_student_2_ed25519.pub")
+    private_key = file(var.ssh_key_path)
     host        = self.network_interface[0].nat_ip_address
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      <<EOT
+sudo docker run -d -p 0.0.0.0:80:3000 \
+  -e DB_TYPE=postgres \
+  -e DB_NAME=${var.db_name} \
+  -e DB_HOST=${yandex_mdb_postgresql_cluster.pg-cluster.host.0.fqdn} \
+  -e DB_PORT=6432 \
+  -e DB_USER=${var.db_user} \
+  -e DB_PASS=${var.db_password} \
+  ghcr.io/requarks/wiki:2.5
+EOT
+    ]
   }
 }
 
