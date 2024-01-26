@@ -47,16 +47,6 @@ variable "db_password" {
   sensitive = true
 }
 
-variable "ssh_key_path_pub" {
-  type      = string
-  sensitive = true
-}
-
-variable "ssh_key_path" {
-  type      = string
-  sensitive = true
-}
-
 provider "yandex" {
   token = var.token
   #  service_account_key_file = "path_to_service_account_key_file"
@@ -71,7 +61,7 @@ resource "yandex_compute_disk" "boot-disk-1" {
   type = "network-hdd"
   zone = var.yc_zone
   # GiB
-  size = "8"
+  size = "30"
   # yc compute image list --folder-id standard-images
   image_id = var.os_image
 }
@@ -81,7 +71,7 @@ resource "yandex_compute_disk" "boot-disk-2" {
   type = "network-hdd"
   zone = var.yc_zone
   # GiB
-  size = "8"
+  size = "30"
   # yc compute image list --folder-id standard-images
   image_id = var.os_image
 }
@@ -126,13 +116,13 @@ resource "yandex_compute_instance" "web-1" {
   }
 
   metadata = {
-    user-data = "#cloud-config\nusers:\n  - name: ${var.yc_user}\n    groups: sudo\n    shell: /bin/bash\n    sudo: 'ALL=(ALL) NOPASSWD:ALL'\n    ssh-authorized-keys:\n      - ${file(${var.ssh_key_path_pub})}"
+    user-data = "#cloud-config\nusers:\n  - name: ${var.yc_user}\n    groups: sudo\n    shell: /bin/bash\n    sudo: 'ALL=(ALL) NOPASSWD:ALL'\n    ssh-authorized-keys:\n      - ${file("~/.ssh/id/yandex/cloud/id_student.pub")}"
   }
 
   connection {
     type        = "ssh"
     user        = var.yc_user
-    private_key = file(var.ssh_key_path)
+    private_key = file("~/.ssh/id/yandex/cloud/id_student")
     host        = self.network_interface[0].nat_ip_address
   }
 
@@ -150,6 +140,15 @@ sudo docker run -d -p 0.0.0.0:80:3000 \
 EOT
     ]
   }
+#  provisioner "remote-exec" {
+#    inline = [
+#      <<EOT
+#echo test
+#EOT
+#    ]
+#  }
+
+  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster]
 }
 
 resource "yandex_compute_instance" "web-2" {
@@ -181,13 +180,13 @@ resource "yandex_compute_instance" "web-2" {
   }
 
   metadata = {
-    user-data = "#cloud-config\nusers:\n  - name: ${var.yc_user}\n    groups: sudo\n    shell: /bin/bash\n    sudo: 'ALL=(ALL) NOPASSWD:ALL'\n    ssh-authorized-keys:\n      - ${file(${var.ssh_key_path_pub})}"
+    user-data = "#cloud-config\nusers:\n  - name: ${var.yc_user}\n    groups: sudo\n    shell: /bin/bash\n    sudo: 'ALL=(ALL) NOPASSWD:ALL'\n    ssh-authorized-keys:\n      - ${file("~/.ssh/id/yandex/cloud/id_student_2.pub")}"
   }
 
   connection {
     type        = "ssh"
     user        = var.yc_user
-    private_key = file(var.ssh_key_path)
+    private_key = file("~/.ssh/id/yandex/cloud/id_student_2")
     host        = self.network_interface[0].nat_ip_address
   }
 
@@ -205,6 +204,15 @@ sudo docker run -d -p 0.0.0.0:80:3000 \
 EOT
     ]
   }
+#  provisioner "remote-exec" {
+#    inline = [
+#      <<EOT
+#echo test
+#EOT
+#    ]
+#  }
+
+  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster]
 }
 
 resource "yandex_lb_target_group" "target-group" {
@@ -246,6 +254,7 @@ variable "yc_postgresql_version" {
 }
 
 resource "yandex_mdb_postgresql_cluster" "pg-cluster" {
+
   name        = "student-pg-cluster"
   environment = "PRESTABLE"
   network_id  = yandex_vpc_network.network-1.id
@@ -272,6 +281,8 @@ resource "yandex_mdb_postgresql_cluster" "pg-cluster" {
     zone      = var.yc_zone
     subnet_id = yandex_vpc_subnet.subnet-1.id
   }
+
+  depends_on = [yandex_vpc_network.network-1, yandex_vpc_subnet.subnet-1]
 }
 
 resource "yandex_mdb_postgresql_user" "db-user" {
@@ -287,7 +298,7 @@ resource "yandex_mdb_postgresql_database" "db" {
   owner      = yandex_mdb_postgresql_user.db-user.name
   lc_collate = "en_US.UTF-8"
   lc_type    = "en_US.UTF-8"
-  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster]
+  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster, yandex_mdb_postgresql_user.db-user]
 }
 
 output "internal_ip_address_vm_1" {
