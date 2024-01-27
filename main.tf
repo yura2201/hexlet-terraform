@@ -38,8 +38,7 @@ variable "db_name" {
 }
 
 variable "db_user" {
-  type      = string
-  sensitive = true
+  type = string
 }
 
 variable "db_password" {
@@ -131,24 +130,24 @@ resource "yandex_compute_instance" "web-1" {
       <<EOT
 sudo docker run -d -p 0.0.0.0:80:3000 \
   -e DB_TYPE=postgres \
-  -e DB_NAME=${var.db_name} \
-  -e DB_HOST=${yandex_mdb_postgresql_cluster.pg-cluster.host.0.fqdn} \
+  -e DB_NAME=${module.yandex-postgresql.databases[0]} \
+  -e DB_HOST=${module.yandex-postgresql.cluster_fqdns_list[0].0} \
   -e DB_PORT=6432 \
-  -e DB_USER=${var.db_user} \
-  -e DB_PASS=${var.db_password} \
+  -e DB_USER=${module.yandex-postgresql.owners_data[0].user} \
+  -e DB_PASS=${module.yandex-postgresql.owners_data[0].password} \
   ghcr.io/requarks/wiki:2.5
 EOT
     ]
   }
-#  provisioner "remote-exec" {
-#    inline = [
-#      <<EOT
-#echo test
-#EOT
-#    ]
-#  }
+  #  provisioner "remote-exec" {
+  #    inline = [
+  #      <<EOT
+  #echo test
+  #EOT
+  #    ]
+  #  }
 
-  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster]
+  depends_on = [module.yandex-postgresql]
 }
 
 resource "yandex_compute_instance" "web-2" {
@@ -195,24 +194,24 @@ resource "yandex_compute_instance" "web-2" {
       <<EOT
 sudo docker run -d -p 0.0.0.0:80:3000 \
   -e DB_TYPE=postgres \
-  -e DB_NAME=${var.db_name} \
-  -e DB_HOST=${yandex_mdb_postgresql_cluster.pg-cluster.host.0.fqdn} \
+  -e DB_NAME=${module.yandex-postgresql.databases[0]} \
+  -e DB_HOST=${module.yandex-postgresql.cluster_fqdns_list[0].0} \
   -e DB_PORT=6432 \
-  -e DB_USER=${var.db_user} \
-  -e DB_PASS=${var.db_password} \
+  -e DB_USER=${module.yandex-postgresql.owners_data[0].user} \
+  -e DB_PASS=${module.yandex-postgresql.owners_data[0].password} \
   ghcr.io/requarks/wiki:2.5
 EOT
     ]
   }
-#  provisioner "remote-exec" {
-#    inline = [
-#      <<EOT
-#echo test
-#EOT
-#    ]
-#  }
+  #  provisioner "remote-exec" {
+  #    inline = [
+  #      <<EOT
+  #echo test
+  #EOT
+  #    ]
+  #  }
 
-  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster]
+  depends_on = [module.yandex-postgresql]
 }
 
 resource "yandex_lb_target_group" "target-group" {
@@ -249,56 +248,59 @@ resource "yandex_lb_network_load_balancer" "balancer" {
   }
 }
 
-variable "yc_postgresql_version" {
-  type = number
-}
-
-resource "yandex_mdb_postgresql_cluster" "pg-cluster" {
-
-  name        = "student-pg-cluster"
-  environment = "PRESTABLE"
+module "yandex-postgresql" {
+  source      = "github.com/terraform-yc-modules/terraform-yc-postgresql?ref=1.0.2"
   network_id  = yandex_vpc_network.network-1.id
+  name        = "tfhexlet"
+  description = "Single-node PostgreSQL cluster for test purposes"
 
-  config {
-    version = var.yc_postgresql_version
-    resources {
-      resource_preset_id = "s2.micro"
-      disk_type_id       = "network-ssd"
-      disk_size          = 15
+  hosts_definition = [
+    {
+      zone             = var.yc_zone
+      assign_public_ip = false
+      subnet_id        = yandex_vpc_subnet.subnet-1.id
     }
-    postgresql_config = {
-      max_connections = 100
+  ]
+
+  postgresql_config = {
+    max_connections = 100
+  }
+
+  databases = [
+    {
+      name       = "hexlet"
+      owner      = var.db_user
+      lc_collate = "ru_RU.UTF-8"
+      lc_type    = "ru_RU.UTF-8"
+      extensions = ["uuid-ossp", "xml2"]
+    },
+    {
+      name       = "hexlet-test"
+      owner      = var.db_user
+      lc_collate = "ru_RU.UTF-8"
+      lc_type    = "ru_RU.UTF-8"
+      extensions = ["uuid-ossp", "xml2"]
     }
-  }
+  ]
 
-  maintenance_window {
-    type = "WEEKLY"
-    day  = "SAT"
-    hour = 12
-  }
+  owners = [
+    {
+      name       = var.db_user
+      conn_limit = 15
+    }
+  ]
 
-  host {
-    zone      = var.yc_zone
-    subnet_id = yandex_vpc_subnet.subnet-1.id
-  }
-
-  depends_on = [yandex_vpc_network.network-1, yandex_vpc_subnet.subnet-1]
-}
-
-resource "yandex_mdb_postgresql_user" "db-user" {
-  cluster_id = yandex_mdb_postgresql_cluster.pg-cluster.id
-  name       = var.db_user
-  password   = var.db_password
-  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster]
-}
-
-resource "yandex_mdb_postgresql_database" "db" {
-  cluster_id = yandex_mdb_postgresql_cluster.pg-cluster.id
-  name       = var.db_name
-  owner      = yandex_mdb_postgresql_user.db-user.name
-  lc_collate = "en_US.UTF-8"
-  lc_type    = "en_US.UTF-8"
-  depends_on = [yandex_mdb_postgresql_cluster.pg-cluster, yandex_mdb_postgresql_user.db-user]
+  users = [
+    {
+      name        = "guest"
+      conn_limit  = 30
+      permissions = ["hexlet"]
+      settings = {
+        pool_mode                   = "transaction"
+        prepared_statements_pooling = true
+      }
+    }
+  ]
 }
 
 output "internal_ip_address_vm_1" {
