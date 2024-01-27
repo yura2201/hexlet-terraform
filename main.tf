@@ -1,16 +1,4 @@
 // Configure the Yandex.Cloud provider
-terraform {
-  required_providers {
-    yandex = {
-      source = "yandex-cloud/yandex"
-    }
-    datadog = {
-      source = "DataDog/datadog"
-    }
-  }
-  required_version = ">= 0.13"
-}
-
 variable "token" {
   type      = string
   sensitive = true
@@ -320,19 +308,19 @@ output "external_ip_address_vm_2" {
 }
 
 ###################
-# Configure the Datadog provider
-variable "datadog_api_key" {
-  type      = string
-  sensitive = true
-}
-
-variable "datadog_app_key" {
-  type      = string
-  sensitive = true
-}
-
-provider "datadog" {
-  api_key = var.datadog_api_key
-  app_key = var.datadog_app_key
-  api_url = "https://api.datadoghq.eu/"
-}
+## Configure the Datadog provider
+#variable "datadog_api_key" {
+#  type      = string
+#  sensitive = true
+#}
+#
+#variable "datadog_app_key" {
+#  type      = string
+#  sensitive = true
+#}
+#
+#provider "datadog" {
+#  api_key = var.datadog_api_key
+#  app_key = var.datadog_app_key
+#  api_url = "https://api.datadoghq.eu/"
+#}
